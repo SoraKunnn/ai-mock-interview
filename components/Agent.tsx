@@ -169,9 +169,9 @@ const Agent = ({
 
                 // Set defaults if we couldn't extract the data
                 if (!interviewData.role) interviewData.role = "Software Developer";
-                if (!interviewData.level) interviewData.level = "Mid-level";
-                if (!interviewData.type) interviewData.type = "Technical";
-                if (interviewData.techstack.length === 0) interviewData.techstack = ["JavaScript, React.js, node.js"];
+                if (!interviewData.level) interviewData.level = "All-level";
+                if (!interviewData.type) interviewData.type = "Mixed";
+                if (interviewData.techstack.length === 0) interviewData.techstack = ["JavaScript, React.js, node.js, mongodb,express"];
 
                 // Ensure we have at least some questions
                 if (interviewData.questions.length === 0) {
