@@ -37,11 +37,8 @@ export async function POST(request: Request) {
             createdAt: new Date().toISOString(),
         };
 
-        const cleanedInterview = Object.fromEntries(
-            Object.entries(interview).filter(([_, value]) => value !== undefined)
-        );
-
-        await db.collection("interviews").add(cleanedInterview);
+        await db.collection("interviews").add(interview);
+        console.log(interview);
 
         return Response.json({ success: true }, { status: 200 });
     } catch (error) {

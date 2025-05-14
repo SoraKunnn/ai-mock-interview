@@ -105,9 +105,127 @@ const Agent = ({
             }
         };
 
+        const saveInterviewToDatabase = async () => {
+            try {
+                // Extract interview data from messages
+                const interviewData = {
+                    role: "",
+                    level: "",
+                    type: "",
+                    techstack: [] as string[],
+                    questions: [] as string[],
+                    userId: userId,
+                    finalized: true,
+                    createdAt: new Date().toISOString(),
+                };
+
+                // Parse messages to extract interview details
+                for (const message of messages) {
+                    const content = message.content;
+
+                    // Try to extract role, level, type, techstack, and questions
+                    if (content.includes("role:") || content.includes("Role:")) {
+                        const roleMatch = content.match(/[Rr]ole:\s*([^,\n]+)/);
+                        if (roleMatch && roleMatch[1]) {
+                            interviewData.role = roleMatch[1].trim();
+                        }
+                    }
+
+                    if (content.includes("level:") || content.includes("Level:")) {
+                        const levelMatch = content.match(/[Ll]evel:\s*([^,\n]+)/);
+                        if (levelMatch && levelMatch[1]) {
+                            interviewData.level = levelMatch[1].trim();
+                        }
+                    }
+
+                    if (content.includes("type:") || content.includes("Type:")) {
+                        const typeMatch = content.match(/[Tt]ype:\s*([^,\n]+)/);
+                        if (typeMatch && typeMatch[1]) {
+                            interviewData.type = typeMatch[1].trim();
+                        }
+                    }
+
+                    if (content.includes("tech stack:") || content.includes("Tech stack:")) {
+                        const techMatch = content.match(/[Tt]ech stack:\s*([^,\n]+)/);
+                        if (techMatch && techMatch[1]) {
+                            interviewData.techstack = techMatch[1].split(',').map(item => item.trim());
+                        }
+                    }
+
+                    // Extract questions (assuming they're in a list format)
+                    if (content.includes("1.") || content.includes("- ")) {
+                        const questionLines = content.split('\n').filter(line => 
+                            line.trim().match(/^(\d+\.|\-)\s+.+/)
+                        );
+
+                        if (questionLines.length > 0) {
+                            interviewData.questions = questionLines.map(line => {
+                                // Remove the number/bullet and trim
+                                return line.replace(/^(\d+\.|\-)\s+/, '').trim();
+                            });
+                        }
+                    }
+                }
+
+                // Set defaults if we couldn't extract the data
+                if (!interviewData.role) interviewData.role = "Software Developer";
+                if (!interviewData.level) interviewData.level = "Mid-level";
+                if (!interviewData.type) interviewData.type = "Technical";
+                if (interviewData.techstack.length === 0) interviewData.techstack = ["JavaScript, React.js, node.js"];
+
+                // Ensure we have at least some questions
+                if (interviewData.questions.length === 0) {
+                    // Extract any sentences that might be questions
+                    const possibleQuestions = messages
+                        .filter(msg => msg.role === "assistant")
+                        .flatMap(msg => msg.content.split('\n'))
+                        .filter(line => line.trim().endsWith('?'));
+
+                    if (possibleQuestions.length > 0) {
+                        interviewData.questions = possibleQuestions;
+                    } else {
+                        interviewData.questions = ["Tell me about yourself?"];
+                    }
+                }
+
+                // Save to database
+                const response = await fetch('/api/vapi/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        role: interviewData.role,
+                        level: interviewData.level,
+                        type: interviewData.type,
+                        techstack: interviewData.techstack.join(','),
+                        amount: interviewData.questions.length,
+                        userid: interviewData.userId,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log("Interview saved successfully");
+                } else {
+                    console.error("Error saving interview:", data.error);
+                }
+
+                router.push("/");
+            } catch (error) {
+                console.error("Error saving interview:", error);
+                router.push("/");
+            }
+        };
+
         if (callStatus === CallStatus.FINISHED) {
             if (type === "generate") {
-                router.push("/");
+                if (messages.length > 0 && userId) {
+                    saveInterviewToDatabase();
+                } else {
+                    router.push("/");
+                }
             } else {
                 handleGenerateFeedback(messages);
             }
@@ -118,13 +236,12 @@ const Agent = ({
         setCallStatus(CallStatus.CONNECTING);
 
         if (type === "generate") {
-            await vapi.start(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
+            // Use type assertion to fix TypeScript error
+            await (vapi.start as any)(process.env.NEXT_PUBLIC_VAPI_WORKFLOW_ID!, {
                 variableValues: {
                     username: userName,
                     userid: userId,
                 },
-                clientMessages: [],
-                serverMessages: []
             });
         } else {
             let formattedQuestions = "";
@@ -133,13 +250,11 @@ const Agent = ({
                     .map((question) => `- ${question}`)
                     .join("\n");
             }
-
-            await vapi.start(interviewer, {
+            // Use type assertion to fix TypeScript error
+            await (vapi.start as any)(interviewer, {
                 variableValues: {
                     questions: formattedQuestions,
                 },
-                clientMessages: [],
-                serverMessages: []
             });
         }
     };
